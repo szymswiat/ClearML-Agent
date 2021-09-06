@@ -56,6 +56,11 @@ DAEMON_ARGS = dict({
         'default': False,
         'group': 'Docker support',
     },
+    '--slurm': {
+        'help': 'Schedule tasks in SLURM HPC queue',
+        'action': 'store_true',
+        'default': False
+    },
     '--force-current-version': {
         'help': 'Force clearml-agent to use the current clearml-agent version when running in the docker',
         'action': 'store_true',
