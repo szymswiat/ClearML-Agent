@@ -1695,7 +1695,7 @@ class Worker(ServiceCommandSection):
         self,
         task_id,  # type: Text
         cmd,  # type: Executable
-        stdout_path=None,  # type: Text
+        stdout_path,  # type: Text
         stderr_path=None,  # type: Optional[Text]
         daemon=False,  # type: bool
         cwd=None,  # type: Text

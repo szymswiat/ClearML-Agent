@@ -5,17 +5,15 @@ import sys
 import warnings
 
 from clearml_agent.backend_api.session.datamodel import UnusedKwargsWarning
-
-import clearml_agent
 from clearml_agent.config import get_config
-from clearml_agent.definitions import FileBuffering, CONFIG_FILE
-from clearml_agent.helper.base import reverse_home_folder_expansion, chain_map, named_temporary_file
+from clearml_agent.definitions import CONFIG_FILE
+from clearml_agent.helper.base import reverse_home_folder_expansion
 from clearml_agent.helper.process import ExitStatus
 from . import interface, session, definitions, commands
 from .errors import ConfigFileNotFound, Sigterm, APIError, CustomBuildScriptFailed
 from .helper.trace import PackageTrace
 from .interface import get_parser
-
+from clearml_agent.slurm import SlurmIntegration
 
 def run_command(parser, args, command_name):
 
@@ -25,7 +23,10 @@ def run_command(parser, args, command_name):
     if command_name and command_name.lower() in ('config', 'init'):
         command_class = commands.Config
     elif len(command_name.split('.')) < 2:
-        command_class = commands.Worker
+        if args.slurm:
+            command_class = SlurmIntegration
+        else:
+            command_class = commands.Worker
     elif hasattr(args, 'func') and getattr(args, 'func'):
         command_class = getattr(commands, command_name.capitalize())
         command_name = args.func
