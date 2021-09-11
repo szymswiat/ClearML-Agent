@@ -1,13 +1,12 @@
 from pathlib import Path
-from typing import Any, Union, OrderedDict
+from typing import Any, OrderedDict
 
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from clearml import Task
+from omegaconf import DictConfig, OmegaConf
 
 from clearml_agent.commands import Worker
-from clearml import Task
-
 from clearml_agent.helper.process import Argv
-from clearml_agent.backend_api.services import tasks as tasks_api
+import os
 
 
 class SlurmIntegration(Worker):
@@ -37,7 +36,7 @@ class SlurmIntegration(Worker):
         sbatch_file = self._gen_sbatch_options(task, cluster_cfg)
 
         sbatch_file += (
-            f'srun clearml-agent execute --id {task_id}'
+            f'srun python {os.getcwd()}/main.py execute --id {task_id} --full-monitoring'
         )
 
         sbatch_path = Path(cluster_cfg.slurm_log_dir) / f'{cluster_cfg.job_name}_run.sh'

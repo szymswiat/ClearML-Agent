@@ -2207,6 +2207,8 @@ class Worker(ServiceCommandSection):
     ):
         self._standalone_mode = standalone_mode
 
+        task_session = self._session
+
         if not task_id:
             raise CommandFailedError("Worker execute must have valid task id")
 
@@ -2547,7 +2549,9 @@ class Worker(ServiceCommandSection):
             os.environ["TRAINS_CONFIG_FILE"] = os.environ.get("CLEARML_CONFIG_FILE")
 
         print("Starting Task Execution:\n".format(current_task.id))
-        exit_code = -1
+
+        stop_signal_status = TaskStopSignal.default
+        status = ExitStatus.interrupted
         try:
             if disable_monitoring:
                 try:
@@ -2557,13 +2561,13 @@ class Worker(ServiceCommandSection):
                     if use_execv:
                         os.execv(command.argv[0].as_posix(), tuple([command.argv[0].as_posix()])+command.argv[1:])
                     else:
-                        exit_code = command.check_call(cwd=script_dir)
-                        exit(exit_code)
+                        status = command.check_call(cwd=script_dir)
+                        exit(status)
                 except subprocess.CalledProcessError as ex:
                     # non zero return code
-                    exit_code = ex.returncode
+                    status = ex.returncode
                     if not use_execv:
-                        exit(exit_code)
+                        exit(status)
                 except Exception as ex:
                     if not use_execv:
                         exit(-1)
@@ -2574,11 +2578,22 @@ class Worker(ServiceCommandSection):
                     suffix=".txt", prefix=".clearml_agent_out.", name_only=True
                 )
                 print("Storing stdout and stderr log into [%s]" % temp_stdout_fname)
-                exit_code, _ = self._log_command_output(
+
+                events_service = self.get_service(Events)
+                stop_signal = TaskStopSignal(
+                    command=self,
+                    session=task_session,
+                    events_service=events_service,
+                    task_id=task_id,
+                )
+
+                status, stop_signal_status = self._log_command_output(
                     task_id=current_task.id,
                     cmd=command,
                     stdout_path=temp_stdout_fname,
                     cwd=script_dir,
+                    stop_signal=stop_signal,
+                    session=task_session
                 )
         except KeyboardInterrupt:
             self.handle_user_abort(current_task.id)
@@ -2586,7 +2601,7 @@ class Worker(ServiceCommandSection):
         except Exception as e:
             self.log.warning(str(e))
             self.log_traceback(e)
-            exit_code = -1
+            status = -1
 
         # kill leftover processes
         kill_all_child_processes()
@@ -2594,16 +2609,16 @@ class Worker(ServiceCommandSection):
         # if we return ExitStatus.interrupted==2,
         # it means user aborted, KeyboardInterrupt should have caught it,
         # that cannot happen when running with disable monitoring
-        exit_code = exit_code if exit_code != ExitStatus.interrupted else -1
+        status = status if status != ExitStatus.interrupted else -1
 
         if not disable_monitoring:
             # we need to change task status according to exit code
-            self.handle_task_termination(current_task.id, exit_code, TaskStopReason.no_stop)
+            self.handle_task_termination(current_task.id, status, stop_signal_status, session=task_session)
             self.stop_monitor()
             # unregister the worker
             self._unregister()
 
-        return 1 if exit_code is None else exit_code
+        return 1 if status is None else status
 
     def _get_task_os_env(self, current_task):
         if not self._session.check_min_api_version('2.9'):

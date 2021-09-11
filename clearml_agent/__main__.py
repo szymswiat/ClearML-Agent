@@ -16,14 +16,13 @@ from .interface import get_parser
 from clearml_agent.slurm import SlurmIntegration
 
 def run_command(parser, args, command_name):
-
     debug = args.debug
     session.Session.set_debug_mode(debug)
 
     if command_name and command_name.lower() in ('config', 'init'):
         command_class = commands.Config
     elif len(command_name.split('.')) < 2:
-        if args.slurm:
+        if command_name == 'daemon' and args.slurm:
             command_class = SlurmIntegration
         else:
             command_class = commands.Worker
