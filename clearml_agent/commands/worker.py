@@ -2444,9 +2444,13 @@ class Worker(ServiceCommandSection):
 
             # do not update the task packages if we are using conda,
             # it will most likely make the task environment unreproducible
-            skip_freeze_update = self.is_conda and not self._session.config.get(
-                "agent.package_manager.conda_full_env_update", False)
+            skip_freeze_update = ((self.is_conda
+                              and
+                              not self._session.config.get("agent.package_manager.conda_full_env_update", False))
+                              or
+                              self._session.config.get("agent.package_manager.skip_freeze_update", False))
 
+            if not is_cached:
             freeze = self.freeze_task_environment(
                 task_id=current_task.id,
                 requirements_manager=requirements_manager,
@@ -2454,6 +2458,13 @@ class Worker(ServiceCommandSection):
                 execution_info=execution,
                 update_requirements=not skip_freeze_update,
             )
+
+            if freeze:
+                print("Summary - installed python packages:")
+                print(dump_yaml(freeze))
+            else:
+                print("No freeze information available")
+
             script_dir = (directory if isinstance(directory, Path) else Path(directory)).absolute().as_posix()
 
         # run code
@@ -2479,12 +2490,6 @@ class Worker(ServiceCommandSection):
 
         command = self.package_api.get_python_command(extra)
         print("[{}]$ {}".format(execution.working_dir, command.pretty()))
-
-        if freeze:
-            print("Summary - installed python packages:")
-            print(dump_yaml(freeze))
-        else:
-            print("No freeze information available")
 
         print("Environment setup completed successfully\n")
 

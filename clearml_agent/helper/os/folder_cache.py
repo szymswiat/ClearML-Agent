@@ -31,12 +31,13 @@ class FolderCache(object):
         """
         return self._cache_folder
 
-    def copy_cached_entry(self, keys, destination):
+    def copy_cached_entry(self, keys, destination, use_symlinks=True):
         # type: (List[str], Path) -> Optional[Path]
         """
         Copy a cached entry into a destination directory, if the cached entry does not exist return None
         :param keys:
         :param destination:
+        :param use_symlinks:
         :return: Target path, None if cached entry does not exist
         """
         self._last_copied_entry_folder = None
@@ -57,8 +58,15 @@ class FolderCache(object):
             if src:
                 destination = Path(destination).absolute()
                 destination.mkdir(parents=True, exist_ok=True)
-                shutil.rmtree(destination.as_posix())
-                shutil.copytree(src.as_posix(), dst=destination.as_posix(), symlinks=True)
+                if destination.is_symlink():
+                    os.unlink(destination.as_posix())
+                else:
+                    shutil.rmtree(destination.as_posix())
+                if use_symlinks:
+                    os.symlink(src.as_posix(), destination.as_posix(), target_is_directory=True)
+                else:
+                    shutil.copytree(src.as_posix(), dst=destination.as_posix(), symlinks=True)
+
         except BaseException as ex:
             warning('Could not copy cache folder {} to {}: {}'.format(src, destination, ex))
             self._lock.release()
@@ -221,5 +229,5 @@ class FolderCache(object):
         if not self._min_free_space_gb or not self._cache_folder:
             return True
         free_space = float(psutil.disk_usage(self._cache_folder.as_posix()).free)
-        free_space /= 2**30
+        free_space /= 2 ** 30
         return free_space > self._min_free_space_gb
