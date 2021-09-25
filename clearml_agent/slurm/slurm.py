@@ -32,6 +32,7 @@ class SlurmIntegration(Worker):
         cluster_cfg = self._to_omega_conf(task._get_configuration_dict('cluster_cfg'))
         cluster_cfg.log_dir = str(Path(cluster_cfg.log_dir) / task_id)
         cluster_cfg.slurm_log_dir = str(Path(cluster_cfg.log_dir) / 'slurm_logs')
+        cluster_cfg.job_name = task.name
 
         sbatch_file = self._gen_sbatch_options(task, cluster_cfg)
 
