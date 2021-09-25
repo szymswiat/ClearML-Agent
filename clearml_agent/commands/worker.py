@@ -2388,11 +2388,12 @@ class Worker(ServiceCommandSection):
                 alternative_code_folder = code_folder.as_posix()
             else:
                 venv_folder, requirements_manager, is_cached = self.install_virtualenv(
-                    standalone_mode=standalone_mode,
-                    requested_python_version=python_ver,
-                    execution_info=execution,
-                    cached_requirements=requirements,
-                )
+                    venv_dir=Path(self._session.config["agent.venvs_dir"], task_id).as_posix(),
+            standalone_mode=standalone_mode,
+            requested_python_version=python_ver,
+            execution_info=execution,
+            cached_requirements=requirements,
+        )
 
                 if not is_cached and not standalone_mode:
                     if self._default_pip:
@@ -2727,7 +2728,7 @@ class Worker(ServiceCommandSection):
             vcs, repo_info = clone_repository_cached(
                 session=self._session,
                 execution=execution,
-                destination=Path(venv_folder) / WORKING_REPOSITORY_DIR,
+                destination=Path(venv_folder) / WORKING_REPOSITORY_DIR / task.id,
             )
         except CommandFailedError:
             raise
