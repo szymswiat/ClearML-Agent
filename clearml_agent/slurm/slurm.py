@@ -28,10 +28,13 @@ class SlurmIntegration(Worker):
         # set task status to in_progress so we know it was popped from the queue
         # noinspection PyBroadException
 
+        log_dir = Path(os.path.expandvars(self._session.config.get('sdk.storage.log_dir'))).expanduser() / task_id
+        log_dir.mkdir(parents=True, exist_ok=True)
+
         task = Task.get_task(task_id=task_id)
         cluster_cfg = self._to_omega_conf(task._get_configuration_dict('cluster_cfg'))
-        cluster_cfg.log_dir = str(Path(cluster_cfg.log_dir) / task_id)
-        cluster_cfg.slurm_log_dir = str(Path(cluster_cfg.log_dir) / 'slurm_logs')
+        cluster_cfg.log_dir = log_dir.as_posix()
+        cluster_cfg.slurm_log_dir = str(Path(task_session.config.get('sdk.storage.log_dir')) / 'slurm_logs')
         cluster_cfg.job_name = task.name
 
         sbatch_file = self._gen_sbatch_options(task, cluster_cfg)
@@ -45,7 +48,7 @@ class SlurmIntegration(Worker):
         with open(sbatch_path, 'w') as f:
             f.write(sbatch_file)
 
-        execute_command_file = str(Path(cluster_cfg.log_dir) / 'agent_log.out')
+        execute_command_file = str(log_dir / 'agent_log.out')
         status, stop_signal_status = self._log_command_output(
             task_id=task_id,
             cmd=Argv('sbatch', str(sbatch_path.absolute())),
