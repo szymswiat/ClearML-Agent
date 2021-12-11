@@ -139,6 +139,9 @@ from clearml_agent.helper.runtime_verification import check_runtime, print_uptim
 from clearml_agent.helper.singleton import Singleton
 from clearml_agent.helper.docker_args import DockerArgsSanitizer
 from clearml_agent.session import Session
+from typing import OrderedDict
+from clearml import Task
+from omegaconf import DictConfig, OmegaConf
 from .events import Events
 
 DOCKER_ROOT_CONF_FILE = "/tmp/clearml.conf"  # assuming we can always access/mount this file
@@ -595,6 +598,22 @@ class Worker(ServiceCommandSection):
     _run_as_user_home = '/clearml_agent_home'
     _docker_fixed_user_cache = '/clearml_agent_cache'
     _temp_cleanup_list = []
+
+    def _to_omega_conf(
+            self,
+            cfg: OrderedDict
+    ) -> DictConfig:
+
+        def convert(c: OrderedDict) -> dict:
+            d = {}
+            for k, v in c.items():
+                if isinstance(v, OrderedDict):
+                    d[k] = convert(v)
+                else:
+                    d[k] = v
+            return d
+
+        return OmegaConf.create(convert(cfg))
 
     @property
     def service(self):
@@ -1987,7 +2006,7 @@ class Worker(ServiceCommandSection):
     ):
         if not task_id:
             raise CommandFailedError("Worker build must have valid task id")
-        
+
         if target and not os.path.isabs(target):
             # Non absolute target path will lead to errors with relative python executable
             target = os.path.abspath(target)
@@ -2387,7 +2406,16 @@ class Worker(ServiceCommandSection):
                     code_folder.mkdir(parents=True, exist_ok=True)
                 alternative_code_folder = code_folder.as_posix()
             else:
-                venv_folder, requirements_manager, is_cached = self.install_virtualenv(
+                #
+        # Get venv path from task configuration
+        #
+        task = Task.get_task(task_id=task_id)
+        cluster_cfg = self._to_omega_conf(task._get_configuration_dict('cfg'))
+        venv_path = cluster_cfg.venv.path
+        print("venv path: " + venv_path)
+
+        venv_folder, requirements_manager, is_cached = self.install_virtualenv(
+            venv_dir=venv_path,
                     standalone_mode=standalone_mode,
                     requested_python_version=python_ver,
                     execution_info=execution,
@@ -2722,7 +2750,7 @@ class Worker(ServiceCommandSection):
             vcs, repo_info = clone_repository_cached(
                 session=self._session,
                 execution=execution,
-                destination=Path(venv_folder) / WORKING_REPOSITORY_DIR,
+                destination=Path(venv_folder) / WORKING_REPOSITORY_DIR / task.id,
             )
         except CommandFailedError:
             raise
@@ -2865,19 +2893,22 @@ class Worker(ServiceCommandSection):
         except Exception:
             requirements = freeze
 
+        #
+        # do not cache venv as we use our own specified in cfg
+        #
         # disable caching with poetry because we cannot make it install into a specific folder
         # Todo: add support for poetry caching
-        if not self.poetry.enabled:
-            # add to cache
-            if add_venv_folder_cache:
-                print('Adding venv into cache: {}'.format(add_venv_folder_cache))
-                self.package_api.add_cached_venv(
-                    requirements=[freeze, previous_reqs],
-                    docker_cmd=execution_info.docker_cmd if execution_info else None,
-                    python_version=getattr(self.package_api, 'python', ''),
-                    cuda_version=self._session.config.get("agent.cuda_version"),
-                    source_folder=add_venv_folder_cache,
-                    exclude_sub_folders=[WORKING_REPOSITORY_DIR, WORKING_STANDALONE_DIR])
+        # if not self.poetry.enabled:
+        #     # add to cache
+        #     if add_venv_folder_cache:
+        #         print('Adding venv into cache: {}'.format(add_venv_folder_cache))
+        #         self.package_api.add_cached_venv(
+        #             requirements=[freeze, previous_reqs],
+        #             docker_cmd=execution_info.docker_cmd if execution_info else None,
+        #             python_version=getattr(self.package_api, 'python', ''),
+        #             cuda_version=self._session.config.get("agent.cuda_version"),
+        #             source_folder=add_venv_folder_cache,
+        #             exclude_sub_folders=[WORKING_REPOSITORY_DIR, WORKING_STANDALONE_DIR])
 
         # If do not update back requirements
         if not update_requirements:
@@ -2905,7 +2936,7 @@ class Worker(ServiceCommandSection):
                 print('Poetry Enabled: Ignoring requested python packages, using repository poetry lock file!')
                 api.install()
                 return api
-            
+
             print(f"Could not find pyproject.toml or poetry.lock file in {lockfile_path} \n")
         except Exception as ex:
             self.log.error("failed installing poetry requirements: {}".format(ex))
@@ -3324,12 +3355,15 @@ class Worker(ServiceCommandSection):
             Path(self._session.config["agent.venvs_dir"], executable_version_suffix)
         venv_dir = Path(os.path.expanduser(os.path.expandvars(venv_dir.as_posix())))
 
-        first_time = not standalone_mode and (
-            is_windows_platform()
-            or self.is_conda
-            or not venv_dir.is_dir()
-            or not self.is_venv_update
-        )
+        #
+        # we don't need to know if that's the first time
+        #
+        # first_time = not standalone_mode and (
+        #     is_windows_platform()
+        #     or self.is_conda
+        #     or not venv_dir.is_dir()
+        #     or not self.is_venv_update
+        # )
 
         if not standalone_mode:
             rm_tree(normalize_path(venv_dir, WORKING_REPOSITORY_DIR))
@@ -3417,7 +3451,10 @@ class Worker(ServiceCommandSection):
                     )
                 else:
                     self.package_api = VirtualenvPip(**package_manager_params)
-                if first_time:
+                # if first_time:
+                #     self.package_api.remove()
+                #     call_package_manager_create = True
+                if not os.path.exists(os.path.join(venv_dir, 'bin', 'python')):
                     self.package_api.remove()
                     call_package_manager_create = True
                 self.global_package_api = SystemPip(**global_package_manager_params)
