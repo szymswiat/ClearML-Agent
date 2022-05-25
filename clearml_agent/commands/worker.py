@@ -2452,19 +2452,19 @@ class Worker(ServiceCommandSection):
                               self._session.config.get("agent.package_manager.skip_freeze_update", False))
 
             if not is_cached:
-            freeze = self.freeze_task_environment(
-                task_id=current_task.id,
-                requirements_manager=requirements_manager,
-                add_venv_folder_cache=venv_folder,
-                execution_info=execution,
-                update_requirements=not skip_freeze_update,
-            )
+                freeze = self.freeze_task_environment(
+                    task_id=current_task.id,
+                    requirements_manager=requirements_manager,
+                    add_venv_folder_cache=venv_folder,
+                    execution_info=execution,
+                    update_requirements=not skip_freeze_update,
+                )
 
-            if freeze:
-                print("Summary - installed python packages:")
-                print(dump_yaml(freeze))
-            else:
-                print("No freeze information available")
+                if freeze:
+                    print("Summary - installed python packages:")
+                    print(dump_yaml(freeze))
+                else:
+                    print("No freeze information available")
 
             script_dir = (directory if isinstance(directory, Path) else Path(directory)).absolute().as_posix()
 
