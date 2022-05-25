@@ -2407,15 +2407,15 @@ class Worker(ServiceCommandSection):
                 alternative_code_folder = code_folder.as_posix()
             else:
                 #
-        # Get venv path from task configuration
-        #
-        task = Task.get_task(task_id=task_id)
-        cluster_cfg = self._to_omega_conf(task._get_configuration_dict('cfg'))
-        venv_path = cluster_cfg.venv.path
-        print("venv path: " + venv_path)
+                # Get venv path from task configuration
+                #
+                task = Task.get_task(task_id=task_id)
+                cluster_cfg = self._to_omega_conf(task._get_configuration_dict('cfg'))
+                venv_path = cluster_cfg.venv.path
+                print("venv path: " + venv_path)
 
-        venv_folder, requirements_manager, is_cached = self.install_virtualenv(
-            venv_dir=venv_path,
+                venv_folder, requirements_manager, is_cached = self.install_virtualenv(
+                    venv_dir=venv_path,
                     standalone_mode=standalone_mode,
                     requested_python_version=python_ver,
                     execution_info=execution,
@@ -3376,7 +3376,6 @@ class Worker(ServiceCommandSection):
             execution_info=execution_info,
             standalone_mode=standalone_mode,
             skip_pip_venv_install=skip_pip_venv_install,
-            first_time=first_time,
         )
 
         # print message so users know they can enable cache
